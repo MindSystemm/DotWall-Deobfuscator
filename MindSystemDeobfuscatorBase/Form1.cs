@@ -91,6 +91,8 @@ namespace MindSystemDeobfuscatorBase
                 DeobfuscatorBase(module);
                 RemoveAntiDebug(module);
                 CFLow(module);
+                RemoveDemo(module);
+                CFLow(module);
                 label6.Text = "Resource Name : " + resourcename;
                 label2.Text = "Status : Saving Exe";
                 string filename = DirectoryName + "\\" + Path.GetFileNameWithoutExtension(ExePath) + "-Decrypted" + Path.GetExtension(ExePath);
@@ -157,9 +159,53 @@ namespace MindSystemDeobfuscatorBase
             }
 
         }
+        public static void RemoveDemo(ModuleDefMD module)
+        {
+            foreach (TypeDef type in module.Types)
+            {
+                foreach (MethodDef method in type.Methods.ToArray())
+                {
+                    if (method.HasBody == false)
+                        continue;
+                    if (method.Body.Instructions.Count < 8)
+                    {
+                            if (method.Body.Instructions[0].OpCode == OpCodes.Ldstr && method.Body.Instructions[0].Operand.ToString().Contains("This program has been protected by an evaluation version of Dotwall Obfuscator"))
+                            {
+                                if (method.Body.Instructions[1].OpCode == OpCodes.Ldstr)
+                                {
+                                    FindReference(module, method.Name);
+                                    type.Methods.Remove(method);
+                                }
+                            }
+                    }
+                }
+            }
+        }
+        public static void FindReference(ModuleDefMD module, string methname)
+        {
+            foreach (TypeDef type in module.Types)
+            {
+                foreach (MethodDef method in type.Methods)
+                {
+                    if (method.HasBody == false)
+                        continue;
+                    for (int i = 0; i < method.Body.Instructions.Count; i++)
+                    {
+                        if (method.Body.Instructions[i].OpCode == OpCodes.Call && method.Body.Instructions[i].Operand.ToString().Contains(methname))
+                        {
+                            method.Body.Instructions[i].OpCode = OpCodes.Nop;
+                        }
+                    }
+
+
+                }
+            }
+        }
         public static int proxyfixed = 0;
         public static void RemoveAntiDebug(ModuleDefMD module)
         {
+            TypeDef typee = null;
+            MethodDef methoddd = null;
             string typename = "";
             string methodname = "";
             foreach (TypeDef type in module.Types)
@@ -174,8 +220,11 @@ namespace MindSystemDeobfuscatorBase
                         {
                             if (method.Body.Instructions[i].OpCode == OpCodes.Ldstr && method.Body.Instructions[i].Operand.ToString().Contains("Debugger detected !"))
                             {
+                                typee = type;
+                                methoddd = method;
                                 typename = method.DeclaringType.Name;
                                 methodname = method.Name;
+                               
                                 goto remover;
                             }
                         }
@@ -189,6 +238,7 @@ namespace MindSystemDeobfuscatorBase
                 if (methodd.Body.Instructions[i].OpCode == OpCodes.Call && methodd.Body.Instructions[i].Operand.ToString().Contains(typename) && methodd.Body.Instructions[i].Operand.ToString().Contains(methodname))
                 {
                     methodd.Body.Instructions.RemoveAt(i);
+                    typee.Methods.Remove(methoddd);
                     return;
                 }
             }
@@ -210,8 +260,6 @@ namespace MindSystemDeobfuscatorBase
                         else if (method.Body.Instructions[i].OpCode == OpCodes.Callvirt && method.Body.Instructions[i].Operand.ToString().Contains(methname) && method.Body.Instructions[i - 1].IsLdcI4())
                         {
                             Emulate(module, method.Body.Instructions[i - 1].GetLdcI4Value(), inst, methname);
-                            //    method.Body.Instructions[i].Operand = operand;
-                            //  method.Body.Instructions.RemoveAt(i - 1);
                         }
                     }
 
@@ -315,9 +363,9 @@ namespace MindSystemDeobfuscatorBase
         }
         public static void CheckProxy(ModuleDefMD module)
         {
-            foreach (TypeDef type in module.Types)
+            foreach (TypeDef type in module.Types.ToArray())
             {
-                foreach (MethodDef method in type.Methods)
+                foreach (MethodDef method in type.Methods.ToArray())
                 {
                     if (method.HasBody == false)
                         continue;
@@ -341,6 +389,8 @@ namespace MindSystemDeobfuscatorBase
                                                     object operand = method.Body.Instructions[y].Operand;
                                                     string methname = method.Name;
                                                     ReplaceCall(operand, methname, module);
+                                                    type.Methods.Remove(method);
+                                         //           module.Types.Remove(type);
                                                     proxyfixed++;
                                                 }
                                                 else if (method.Body.Instructions[y].OpCode == OpCodes.Callvirt)
@@ -348,6 +398,8 @@ namespace MindSystemDeobfuscatorBase
                                                     object operand = method.Body.Instructions[y].Operand;
                                                     string methname = method.Name;
                                                     ReplaceCall(operand, methname, module);
+                                                    type.Methods.Remove(method);
+                                           //         module.Types.Remove(type);
                                                     proxyfixed++;
                                                 }
                                             }
@@ -355,6 +407,8 @@ namespace MindSystemDeobfuscatorBase
                                         else
                                         {
                                             FindReference(module, method.Name, switches);
+                                            type.Methods.Remove(method);
+                                     //       module.Types.Remove(type);
                                         }
                                     }
                                 }
